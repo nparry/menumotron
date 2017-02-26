@@ -23,7 +23,7 @@ function determineMenuName(menu) {
     (year < 2000 ? '20' : '') + year,
     (month < 10 ? '0' : '') + month,
     (day < 10 ? '0' : '') + day
-  ].join('-') + '.menu';
+  ].join('-');
 }
 
 function saveMenu(data) {
@@ -49,12 +49,12 @@ function saveMenu(data) {
 
 exports.handler = function(event, context, callback) {
   var sesNotification = event.Records[0].ses;
-  var msgId = 'menuemail/' + sesNotification.mail.messageId;
+  var msgId = sesNotification.mail.messageId;
   console.log("Triggered to process message " + msgId);
 
   s3.getObject({
     Bucket: bucketName,
-    Key: msgId
+    Key: 'menuemail/' + msgId
   }, function(err, data) {
     if (err) {
       console.log("Failed to fetch " + msgId);
