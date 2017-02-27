@@ -39,4 +39,6 @@ exports.handler = function(event, context, callback) {
       sendHipchatMessage(data.Body.utf8Slice());
     }
   });
+  callback(null, {"Hello":"World"});
 };
+
