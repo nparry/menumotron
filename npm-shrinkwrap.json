@@ -5,10 +5,25 @@
       "from": "addressparser@>=1.0.1 <1.1.0",
       "resolved": "https://registry.npmjs.org/addressparser/-/addressparser-1.0.1.tgz"
     },
+    "async": {
+      "version": "0.2.10",
+      "from": "async@>=0.2.9 <0.3.0",
+      "resolved": "https://registry.npmjs.org/async/-/async-0.2.10.tgz"
+    },
+    "debug": {
+      "version": "2.6.1",
+      "from": "debug@>=2.1.2 <3.0.0",
+      "resolved": "https://registry.npmjs.org/debug/-/debug-2.6.1.tgz"
+    },
     "encoding": {
       "version": "0.1.12",
       "from": "encoding@>=0.1.12 <0.2.0",
       "resolved": "https://registry.npmjs.org/encoding/-/encoding-0.1.12.tgz"
+    },
+    "hipchatter": {
+      "version": "1.0.0",
+      "from": "hipchatter@latest",
+      "resolved": "https://registry.npmjs.org/hipchatter/-/hipchatter-1.0.0.tgz"
     },
     "iconv-lite": {
       "version": "0.4.15",
@@ -19,6 +34,16 @@
       "version": "0.3.0",
       "from": "mimelib@latest",
       "resolved": "https://registry.npmjs.org/mimelib/-/mimelib-0.3.0.tgz"
+    },
+    "ms": {
+      "version": "0.7.2",
+      "from": "ms@0.7.2",
+      "resolved": "https://registry.npmjs.org/ms/-/ms-0.7.2.tgz"
+    },
+    "needle": {
+      "version": "1.4.5",
+      "from": "needle@>=1.0.0 <2.0.0",
+      "resolved": "https://registry.npmjs.org/needle/-/needle-1.4.5.tgz"
     }
   }
 }
