@@ -39,6 +39,10 @@ exports.handler = function(event, context, callback) {
       sendHipchatMessage(data.Body.utf8Slice());
     }
   });
-  callback(null, {"Hello":"World"});
+  context.succeed({
+    statusCode: 200,
+    headers: { "Content-Type": "application/json" },
+    body: "{ }"
+  });
 };
 
