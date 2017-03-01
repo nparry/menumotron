@@ -6,7 +6,7 @@ var hipchatter = new Hipchatter(process.env.HIPCHAT_AUTH_TOKEN, 'https://covermy
 
 var bucketName = 'menumotron.nparry.com';
 
-function sendHipchatMessage(message, context) {
+function sendHipchatMessage(message, callback) {
   hipchatter.notify('Menumotron', {
     message: message,
     color: 'green',
@@ -21,7 +21,7 @@ function sendHipchatMessage(message, context) {
       console.log('Failed to send hipchat notification');
       console.log(err, err.stack);
     }
-    context.succeed({
+    callback(null, {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
       body: "{ }"
@@ -38,10 +38,10 @@ exports.handler = function(event, context, callback) {
     if (err) {
       console.log("Failed to fetch menu for " + today);
       console.log(err, err.stack);
-      sendHipchatMessage("No menu found for " + today, context);
+      sendHipchatMessage("No menu found for " + today, callback);
     } else {
       console.log("Fetched menu for " + today);
-      sendHipchatMessage(data.Body.utf8Slice(), context);
+      sendHipchatMessage(data.Body.utf8Slice(), callback);
     }
   });
 };

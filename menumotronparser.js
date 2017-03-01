@@ -28,26 +28,37 @@ function normalizeMenu(dailyMenu) {
   return result.join('\n');
 }
 
-function processMenu(baseDate, buffer) {
+function saveDailyMenu(dailyMenuName, dailyMenu, callback) {
+  s3.putObject({
+    Bucket: bucketName,
+    Key: 'menus/' + dailyMenuName,
+    Body: dailyMenu
+  }, function(err, data) {
+    if (err) {
+      console.log("Failed to save daily menu " + dailyMenuName);
+      console.log(err, err.stack);
+      callback(dailyMenuName);
+    } else {
+      console.log("Saved daily menu " + dailyMenuName);
+      callback(null);
+    }
+  });
+}
+
+function processMenu(baseDate, buffer, callback) {
   var data = buffer.utf8Slice();
   var parts = data.split(/\n\s*(?:Monday|Tuesday|Wednesday|Thursday|Friday)[^\r\n]*/i);
   console.log('Split menu into ' + parts.length + ' parts');
 
+  var results = [];
   for (var i = 1; i < 6; i++) {
     console.log('Processing menu piece ' + i);
-    var dailyMenu = normalizeMenu(parts[i]);
     var date = addDays(baseDate, i - 1);
-    var dailyMenuName = date.toISOString().split('T')[0]
-    s3.putObject({
-      Bucket: bucketName,
-      Key: 'menus/' + dailyMenuName,
-      Body: dailyMenu
-    }, function(err, data) {
-      if (err) {
-        console.log("Failed to save daily menu " + dailyMenuName);
-        console.log(err, err.stack);
-      } else {
-        console.log("Saved daily menu " + dailyMenuName);
+    saveDailyMenu(date.toISOString().split('T')[0], normalizeMenu(parts[i]), function(result) {
+      results.push(result);
+      if (results.length == 5) {
+        var errors = results.filter(function(r) { return r != null; });
+        callback(errors.length == 0 ? null : errors.length, baseDate);
       }
     });
   }
@@ -67,9 +78,10 @@ exports.handler = function(event, context, callback) {
     if (err) {
       console.log("Failed to fetch " + menuName);
       console.log(err, err.stack);
+      callback(key, 'Failed');
     } else {
       console.log("Processing " + menuName);
-      processMenu(new Date(menuName), data.Body);
+      processMenu(new Date(menuName), data.Body, callback);
     }
   });
 };

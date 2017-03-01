@@ -26,7 +26,7 @@ function determineMenuName(menu) {
   ].join('-');
 }
 
-function saveMenu(data) {
+function saveMenu(data, callback) {
   var menu = extractMenu(data);
   console.log("Successfully extracted menu");
 
@@ -41,8 +41,10 @@ function saveMenu(data) {
     if (err) {
       console.log("Failed to save menu " + menuName);
       console.log(err, err.stack);
+      callback(menuName, "Failed");
     } else {
       console.log("Saved menu " + menuName);
+      callback(null, menuName);
     }
   });
 }
@@ -59,9 +61,10 @@ exports.handler = function(event, context, callback) {
     if (err) {
       console.log("Failed to fetch " + msgId);
       console.log(err, err.stack);
+      callback(msgId, "Failed");
     } else {
       console.log("Processing " + msgId);
-      saveMenu(data.Body);
+      saveMenu(data.Body, callback);
     }
   });
 };
