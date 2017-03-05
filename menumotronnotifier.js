@@ -6,10 +6,10 @@ var hipchatter = new Hipchatter(process.env.HIPCHAT_AUTH_TOKEN, 'https://covermy
 
 var bucketName = 'menumotron.nparry.com';
 
-function sendHipchatMessage(message, callback) {
+function sendHipchatMessage(message, color, callback) {
   hipchatter.notify('Menumotron', {
     message: message,
-    color: 'green',
+    color: color,
     message_format: 'text',
     token: process.env.HIPCHAT_ROOM_TOKEN,
     notify: true
@@ -38,10 +38,10 @@ exports.handler = function(event, context, callback) {
     if (err) {
       console.log("Failed to fetch menu for " + today);
       console.log(err, err.stack);
-      sendHipchatMessage("No menu found for " + today, callback);
+      sendHipchatMessage("No menu found for " + today, 'yellow', callback);
     } else {
       console.log("Fetched menu for " + today);
-      sendHipchatMessage(data.Body.utf8Slice(), callback);
+      sendHipchatMessage(data.Body.utf8Slice(), 'green', callback);
     }
   });
 };
