@@ -7,6 +7,7 @@ var hipchatter = new Hipchatter(process.env.HIPCHAT_AUTH_TOKEN, 'https://covermy
 var bucketName = 'menumotron.nparry.com';
 
 function sendHipchatMessage(message, color, callback) {
+  console.log('Sending ' + color + ' message to hipchat');
   hipchatter.notify('Menumotron', {
     message: message,
     color: color,
@@ -30,19 +31,28 @@ function sendHipchatMessage(message, color, callback) {
 }
 
 exports.handler = function(event, context, callback) {
-  var today = new Date().toISOString().split('T')[0];
-  s3.getObject({
-    Bucket: bucketName,
-    Key: 'menus/' + today
-  }, function(err, data) {
-    if (err) {
-      console.log("Failed to fetch menu for " + today);
-      console.log(err, err.stack);
-      sendHipchatMessage("No menu found for " + today, 'yellow', callback);
-    } else {
-      console.log("Fetched menu for " + today);
-      sendHipchatMessage(data.Body.utf8Slice(), 'green', callback);
-    }
-  });
+  var today = new Date();
+  var menuName = today.toISOString().split('T')[0];
+  var isWeekend = (today.getDay() % 6) == 0;
+
+  if (isWeekend) {
+    console.log('Skipping S3 lookup since ' + menuName + ' is the weekend');
+    sendHipchatMessage('Sorry, you have to figure out your own lunch on the weekend', 'gray', callback);
+  }
+  else {
+    s3.getObject({
+      Bucket: bucketName,
+      Key: 'menus/' + menuName
+    }, function(err, data) {
+      if (err) {
+        console.log('Failed to fetch menu for ' + menuName);
+        console.log(err, err.stack);
+        sendHipchatMessage('No menu found for ' + menuName, 'yellow', callback);
+      } else {
+        console.log('Fetched menu for ' + menuName);
+        sendHipchatMessage(data.Body.utf8Slice(), 'green', callback);
+      }
+    });
+  }
 };
 
