@@ -22,13 +22,25 @@ function fetchMenuContent(key, menus, expectedSize, callback, toplevelCallback) 
   });
 }
 
+function getDayName(date) {
+  return [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ][new Date(date).getDay()];
+}
+
 function buildHistoricalMenu(accumulator, callback) {
   var menus = {};
   function saveMenus() {
     var dates = Object.keys(menus).sort().reverse();
     var parts = [];
     for (var i = 0; i < dates.length; i++) {
-      var header = "Menu for " + dates[i];
+      var header = "Menu for " + getDayName(dates[i]) + ", " + dates[i];
       var menu = [ header, '-'.repeat(header.length), menus[dates[i]] ].join('\n');
       parts.push(menu);
     }
