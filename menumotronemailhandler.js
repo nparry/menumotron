@@ -8,7 +8,13 @@ function extractMenu(buffer) {
   var data = buffer.utf8Slice();
   var boundary = data.match(/boundary="([^"]+)"/)[1];
   var encodedMenu = data.split('--' + boundary)[1];
-  return mimelib.decodeQuotedPrintable(encodedMenu);
+  if (encodedMenu.includes('Content-Transfer-Encoding: base64')) {
+    var lines = encodedMenu.split(/[\r\n]/).filter(function(l) { return l.length > 0 && !l.includes(' '); });
+    return mimelib.decodeBase64(lines.join(''));
+  }
+  else {
+    return mimelib.decodeQuotedPrintable(encodedMenu);
+  }
 }
 
 function determineMenuName(menu) {
