@@ -32,7 +32,16 @@ function determineMenuName(menu) {
   ].join('-');
 }
 
-function saveMenu(data, callback) {
+function determineOffice(sesNotification) {
+  if (sesNotification.mail.destination[0] == process.env.CLEVELAND_OFFICE_EMAIL) {
+    return 'Cleveland';
+  }
+  else {
+    return 'Columbus';
+  }
+}
+
+function saveMenu(office, data, callback) {
   var menu = extractMenu(data);
   console.log("Successfully extracted menu");
 
@@ -41,7 +50,7 @@ function saveMenu(data, callback) {
 
   s3.putObject({
     Bucket: bucketName,
-    Key: 'menumessages/' + menuName,
+    Key: 'menumessages/' + office + '/' + menuName,
     Body: menu
   }, function(err, data) {
     if (err) {
@@ -60,6 +69,9 @@ exports.handler = function(event, context, callback) {
   var msgId = sesNotification.mail.messageId;
   console.log("Triggered to process message " + msgId);
 
+  var office = determineOffice(sesNotification);
+  console.log("Message " + msgId + " is for office " + office);
+
   s3.getObject({
     Bucket: bucketName,
     Key: 'menuemail/' + msgId
@@ -70,7 +82,7 @@ exports.handler = function(event, context, callback) {
       callback(msgId, "Failed");
     } else {
       console.log("Processing " + msgId);
-      saveMenu(data.Body, callback);
+      saveMenu(office, data.Body, callback);
     }
   });
 };
