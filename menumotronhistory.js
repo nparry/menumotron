@@ -14,7 +14,7 @@ function fetchMenuContent(key, menus, expectedSize, callback, toplevelCallback) 
       toplevelCallback(key, 'Failed');
     } else {
       console.log("Fetched menu from key " + key);
-      menus[key.split('/')[1]] = data.Body.utf8Slice();
+      menus[key.split('/')[2]] = data.Body.utf8Slice();
       if (Object.keys(menus).length == expectedSize) {
         callback();
       }
@@ -34,9 +34,12 @@ function getDayName(date) {
   ][new Date(date).getDay()];
 }
 
-function buildHistoricalMenu(accumulator, callback) {
+function buildHistoricalMenu(accumulator, office, callback) {
+  var objectName = 'menu.' + office + '.log';
   var menus = {};
   function saveMenus() {
+    console.log('Saving historical menu for ' + office);
+    var objectName = 'menu.' + office + '.log';
     var dates = Object.keys(menus).sort().reverse();
     var parts = [];
     for (var i = 0; i < dates.length; i++) {
@@ -45,19 +48,20 @@ function buildHistoricalMenu(accumulator, callback) {
       parts.push(menu);
     }
 
+
     s3.putObject({
       Bucket: bucketName,
-      Key: 'menu.log',
+      Key: objectName,
       ContentType: 'text/plain',
       Body: parts.join("\n\n")
     }, function(err, data) {
       if (err) {
-        console.log("Failed to save historical menu");
+        console.log("Failed to save historical menu for " + office);
         console.log(err, err.stack);
-        callback('menu.log', 'Failed');
+        callback(objectName, 'Failed');
       } else {
-        console.log("Saved historical menu");
-        callback(null, 'menu.log');
+        console.log("Saved historical menu for " + office);
+        callback(null, objectName);
       }
     });
   };
@@ -68,27 +72,47 @@ function buildHistoricalMenu(accumulator, callback) {
   }
 }
 
-function buildCallback(accumulator, toplevelCallback) {
+function accumulateMenuNames(accumulator, office, callback) {
   return function(r) {
     accumulator = accumulator.concat(r.data.Contents);
 
     if(r.hasNextPage()) {
-      r.nextPage().on('success', buildCallback(accumulator, toplevelCallback)).send();
+      console.log('Fetching next page of menu names for ' + office);
+      r.nextPage().on('success', accumulateMenuNames(accumulator, office, callback)).send();
     } else {
-      buildHistoricalMenu(accumulator, toplevelCallback);
+      console.log('Fetched ' + accumulator.length + ' menu names for ' + office);
+      buildHistoricalMenu(accumulator, office, callback);
     }
   };
 }
 
-exports.handler = function(event, context, callback) {
+function buildHistoricalMenuForOffice(office, callback) {
+  console.log('Fetching menu names for ' + office);
   s3.listObjectsV2({
     Bucket: bucketName,
-    Prefix:'menus/'
+    Prefix:'menus/' + office
   }).on(
     'success',
-    buildCallback([], callback)
+    accumulateMenuNames([], office, callback)
   ).on('error', function(r) {
     console.log('Unable to list bucket contents');
-    callback(bucketName, "Failed");
+    callback(bucketName + '/' + office, "Failed");
   }).send();
+}
+
+exports.handler = function(event, context, callback) {
+  var offices = [ 'Columbus', 'Cleveland' ];
+
+  var results = [];
+  function handlerCallback(err, result) {
+    console.log("Got top level result " + err + " " + result);
+    results.push(result);
+    if (results.length == offices.length) {
+      callback(null, offices.length);
+    }
+  }
+
+  for (var i = 0; i < offices.length; i++) {
+    buildHistoricalMenuForOffice(offices[i], handlerCallback);
+  }
 };
