@@ -45,6 +45,22 @@ function saveDailyMenu(office, dailyMenuName, dailyMenu, callback) {
   });
 }
 
+function recordProcessMarker(office, errors, baseDate, callback) {
+  s3.putObject({
+    Bucket: bucketName,
+    Key: 'menus/lastUpdated.marker',
+    Body: "Updated " + office + " menus with " + errors.length + " errors at " + (new Date()).toString()
+  }, function(err, data) {
+    if (err) {
+      console.log("Failed to update lastUpdated marker");
+      console.log(err, err.stack);
+    } else {
+      console.log("Update lastUpdated marker");
+    }
+    callback(errors.length == 0 ? null : errors.length, baseDate);
+  });
+}
+
 function processMenu(office, baseDate, buffer, callback) {
   var data = buffer.utf8Slice();
   var parts = data.split(/\n\s*(?:Monday|Tuesday|Wednesday|Thursday|Friday)[^\r\n]*/i);
@@ -58,7 +74,7 @@ function processMenu(office, baseDate, buffer, callback) {
       results.push(result);
       if (results.length == 5) {
         var errors = results.filter(function(r) { return r != null; });
-        callback(errors.length == 0 ? null : errors.length, baseDate);
+        recordProcessMarker(office, errors, baseDate, callback);
       }
     });
   }
