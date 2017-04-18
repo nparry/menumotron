@@ -17,7 +17,7 @@ function normalizeMenu(dailyMenu) {
     if (line.length == 0) continue;
 
     // If we've hit the closing lines, stop building the menu
-    if (line.match(/\b(sara|week|you)\b/i)) break;
+    if (line.match(/\b(sara|joan|week|you)\b/i)) break;
 
     // If this is the typical "Salad" line, add some padding
     if (line.indexOf(' ') == -1 && result.length != 0) result.push('');
@@ -28,10 +28,10 @@ function normalizeMenu(dailyMenu) {
   return result.join('\n');
 }
 
-function saveDailyMenu(dailyMenuName, dailyMenu, callback) {
+function saveDailyMenu(office, dailyMenuName, dailyMenu, callback) {
   s3.putObject({
     Bucket: bucketName,
-    Key: 'menus/' + dailyMenuName,
+    Key: 'menus/' + office + '/' + dailyMenuName,
     Body: dailyMenu
   }, function(err, data) {
     if (err) {
@@ -45,7 +45,7 @@ function saveDailyMenu(dailyMenuName, dailyMenu, callback) {
   });
 }
 
-function processMenu(baseDate, buffer, callback) {
+function processMenu(office, baseDate, buffer, callback) {
   var data = buffer.utf8Slice();
   var parts = data.split(/\n\s*(?:Monday|Tuesday|Wednesday|Thursday|Friday)[^\r\n]*/i);
   console.log('Split menu into ' + parts.length + ' parts');
@@ -54,7 +54,7 @@ function processMenu(baseDate, buffer, callback) {
   for (var i = 1; i < 6; i++) {
     console.log('Processing menu piece ' + i);
     var date = addDays(baseDate, i - 1);
-    saveDailyMenu(date.toISOString().split('T')[0], normalizeMenu(parts[i]), function(result) {
+    saveDailyMenu(office, date.toISOString().split('T')[0], normalizeMenu(parts[i]), function(result) {
       results.push(result);
       if (results.length == 5) {
         var errors = results.filter(function(r) { return r != null; });
@@ -67,9 +67,10 @@ function processMenu(baseDate, buffer, callback) {
 exports.handler = function(event, context, callback) {
   var key = event.Records[0].s3.object.key;
   console.log("Triggered to process key " + key);
-  if (!key.match(/menumessages\/\d\d\d\d-\d\d-\d\d/)) return;
-  var menuName = key.split('/')[1];
-  console.log("Will attempt to process menu " + menuName);
+  if (!key.match(/menumessages\/(Columbus|Cleveland)\/\d\d\d\d-\d\d-\d\d/)) return;
+  var menuOffice = key.split('/')[1];
+  var menuName = key.split('/')[2];
+  console.log("Will attempt to process menu " + menuName + " for office " + menuOffice);
 
   s3.getObject({
     Bucket: bucketName,
@@ -81,7 +82,7 @@ exports.handler = function(event, context, callback) {
       callback(key, 'Failed');
     } else {
       console.log("Processing " + menuName);
-      processMenu(new Date(menuName), data.Body, callback);
+      processMenu(menuOffice, new Date(menuName), data.Body, callback);
     }
   });
 };
