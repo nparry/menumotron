@@ -17,7 +17,7 @@ function normalizeMenu(dailyMenu) {
     if (line.length == 0) continue;
 
     // If we've hit the closing lines, stop building the menu
-    if (line.match(/\b(sara|joan|week|you)\b/i)) break;
+    if (line.match(/\b(sara|joan|marianne|week)\b/i)) break;
 
     // If this is the typical "Salad" line, add some padding
     if (line.indexOf(' ') == -1 && result.length != 0) result.push('');
@@ -102,3 +102,4 @@ exports.handler = function(event, context, callback) {
     }
   });
 };
+
