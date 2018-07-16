@@ -35,7 +35,7 @@ function sendHipchatMessageForOffice(office, menuName, color, callback) {
     if (err) {
       console.log('Failed to fetch ' + office + ' menu for ' + menuName);
       console.log(err, err.stack);
-      sendHipchatMessage(office, 'No menu found for ' + menuName, 'yellow', callback);
+      callback(office); //sendHipchatMessage(office, 'No menu found for ' + menuName, 'yellow', callback);
     } else {
       console.log('Fetched ' + office + ' menu for ' + menuName);
       sendHipchatMessage(office, data.Body.utf8Slice(), color, callback);
@@ -64,7 +64,8 @@ exports.handler = function(event, context, callback) {
   }
   else {
     var offices = {
-      'Columbus': 'green',
+      '2Miranova': 'green',,
+      '41SouthHigh': 'yellow',
       'Cleveland': 'purple'
     };
 
@@ -81,4 +82,5 @@ exports.handler = function(event, context, callback) {
     });
   }
 };
+
 

@@ -36,8 +36,11 @@ function determineOffice(sesNotification) {
   if (sesNotification.mail.destination[0] == process.env.CLEVELAND_OFFICE_EMAIL) {
     return 'Cleveland';
   }
+  else if (sesNotification.mail.destination[0] == process.env.SOUTH_HIGH_OFFICE_EMAIL) {
+    return '41SouthHigh';
+  }
   else {
-    return 'Columbus';
+    return '2Miranova';
   }
 }
 
@@ -86,3 +89,4 @@ exports.handler = function(event, context, callback) {
     }
   });
 };
+

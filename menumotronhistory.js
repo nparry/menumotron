@@ -101,7 +101,7 @@ function buildHistoricalMenuForOffice(office, callback) {
 }
 
 exports.handler = function(event, context, callback) {
-  var offices = [ 'Columbus', 'Cleveland' ];
+  var offices = [ '41SouthHigh', '2Miranova', 'Cleveland' ];
 
   var results = [];
   function handlerCallback(err, result) {
@@ -116,3 +116,4 @@ exports.handler = function(event, context, callback) {
     buildHistoricalMenuForOffice(offices[i], handlerCallback);
   }
 };
+
