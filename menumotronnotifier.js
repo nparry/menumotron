@@ -64,8 +64,7 @@ exports.handler = function(event, context, callback) {
   }
   else {
     var offices = {
-      '2Miranova': 'green',,
-      '41SouthHigh': 'yellow',
+      'Columbus': 'green',
       'Cleveland': 'purple'
     };
 
@@ -82,5 +81,4 @@ exports.handler = function(event, context, callback) {
     });
   }
 };
-
 

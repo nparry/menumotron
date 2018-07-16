@@ -83,7 +83,7 @@ function processMenu(office, baseDate, buffer, callback) {
 exports.handler = function(event, context, callback) {
   var key = event.Records[0].s3.object.key;
   console.log("Triggered to process key " + key);
-  if (!key.match(/menumessages\/(41SouthHigh|2Miranova|Cleveland)\/\d\d\d\d-\d\d-\d\d/)) return;
+  if (!key.match(/menumessages\/(Columbus|Cleveland)\/\d\d\d\d-\d\d-\d\d/)) return;
   var menuOffice = key.split('/')[1];
   var menuName = key.split('/')[2];
   console.log("Will attempt to process menu " + menuName + " for office " + menuOffice);
