@@ -42,7 +42,10 @@ function sendSlackMessage(office, message, color, callback) {
     json['attachments'] = [{
       fallback: message,
       color: colors[color],
-      pretext: '*' + office + '*',
+      author_name: 'The Culinary Team',
+      author_link: 'https://confluence.covermymeds.com/x/DQAf',
+      title: office,
+      title_link: process.env[office.toUpperCase() + '_MENU_HISTORY'],
       text: '```' + message + '```',
       mrkdwn: true
     }];
