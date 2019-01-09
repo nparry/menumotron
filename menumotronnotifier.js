@@ -103,9 +103,7 @@ function fetchMenu(office, menuName, callback) {
 
 function produceHandlerResult(offices) {
   return {
-    statusCode: 200,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ 'results': offices })
+    statusCode: 200
   };
 }
 
