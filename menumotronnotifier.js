@@ -1,4 +1,5 @@
 var AWS = require('aws-sdk');
+var request = require('request')
 var s3 = new AWS.S3();
 
 var Hipchatter = require('hipchatter');
@@ -6,8 +7,18 @@ var hipchatter = new Hipchatter(process.env.HIPCHAT_AUTH_TOKEN, 'https://covermy
 
 var bucketName = 'menumotron.nparry.com';
 
+function messageDeliveryFinished(err, office, chatSystem, callback) {
+  if (err == null) {
+    console.log('Sent ' + chatSystem + ' notification');
+  }
+  else {
+    console.log('Failed to send ' + chatSystem + ' notification');
+  }
+
+  callback(office);
+}
+
 function sendHipchatMessage(office, message, color, callback) {
-  console.log('Sending ' + color + ' message to hipchat');
   hipchatter.notify('Menumotron', {
     message: office ? office + '\n' + message : message,
     color: color,
@@ -15,19 +26,60 @@ function sendHipchatMessage(office, message, color, callback) {
     token: process.env.HIPCHAT_ROOM_TOKEN,
     notify: true
   }, function(err) {
-    if (err == null) {
-      console.log('Sent hipchat notification');
-    }
-    else {
-      console.log('Failed to send hipchat notification');
-      console.log(err, err.stack);
-    }
-
-    callback(office);
+    messageDeliveryFinished(err, office, 'hipchat', callback);
   });
 }
 
-function sendHipchatMessageForOffice(office, menuName, color, callback) {
+function sendSlackMessage(office, message, color, callback) {
+  var json = {};
+  if (office) {
+    var colors = {
+      green: '#36a64f',
+      purple: '#770077',
+      gray: '#777777'
+    };
+
+    json['attachments'] = [{
+      fallback: message,
+      color: colors[color],
+      pretext: '*' + office + '*',
+      text: '```' + message + '```',
+      mrkdwn: true
+    }];
+  }
+  else {
+    json['text'] = message;
+  }
+
+  request.post(process.env.SLACK_WEBHOOK_URL, {
+    json: json
+  }, function(err, res, body) {
+    messageDeliveryFinished(err, office, 'slack', callback);
+  });
+}
+
+function sendMessages(office, message, color, callback) {
+  if (message == null) {
+    callback(office);
+    return;
+  }
+
+  var chatSystemDeliveryMethods = [ sendHipchatMessage, sendSlackMessage ];
+
+  var results = [];
+  function messageDeliveredCallback(delivered) {
+    results.push(delivered);
+    if (results.length == chatSystemDeliveryMethods.length) {
+      callback(office);
+    }
+  }
+
+  chatSystemDeliveryMethods.forEach(function (deliverer) {
+    deliverer(office, message, color, messageDeliveredCallback);
+  });
+}
+
+function fetchMenu(office, menuName, callback) {
   s3.getObject({
     Bucket: bucketName,
     Key: 'menus/' + office + '/' + menuName
@@ -37,14 +89,14 @@ function sendHipchatMessageForOffice(office, menuName, color, callback) {
       console.log(err, err.stack);
       if (office == 'Columbus') {
         // Hack to amuse people
-        sendHipchatMessage(office, 'Something delicious (shrug)', color, callback);
+        callback('Something delicious (shrug)');
       }
       else {
-        callback(office); //sendHipchatMessage(office, 'No menu found for ' + menuName, 'yellow', callback);
+        callback(null);
       }
     } else {
       console.log('Fetched ' + office + ' menu for ' + menuName);
-      sendHipchatMessage(office, data.Body.utf8Slice(), color, callback);
+      callback(data.Body.utf8Slice());
     }
   });
 }
@@ -64,7 +116,7 @@ exports.handler = function(event, context, callback) {
 
   if (isWeekend) {
     console.log('Skipping S3 lookup since ' + menuName + ' is the weekend');
-    sendHipchatMessage(null, 'Sorry, you have to figure out your own lunch on the weekend', 'gray', function(ignored) {
+    sendMessages(null, 'Sorry, you have to figure out your own lunch on the weekend', 'gray', function(ignored) {
       callback(null, produceHandlerResult([]));
     });
   }
@@ -83,7 +135,9 @@ exports.handler = function(event, context, callback) {
     }
 
     Object.keys(offices).forEach(function (office) {
-      sendHipchatMessageForOffice(office, menuName, offices[office], handlerCallback);
+      fetchMenu(office, menuName, function(message) {
+        sendMessages(office, message, offices[office], handlerCallback);
+      });
     });
   }
 };

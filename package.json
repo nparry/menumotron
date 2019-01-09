@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "hipchatter": "^1.0.0",
-    "mimelib": "^0.3.0"
+    "mimelib": "^0.3.0",
+    "request": "^2.88.0"
   }
 }
