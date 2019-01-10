@@ -38,7 +38,10 @@ function sendHipchatMessage(event, office, message, color, callback) {
 }
 
 function sendSlackMessage(event, office, message, color, callback) {
-  var json = {};
+  var json = {
+    response_type: 'in_channel'
+  };
+
   if (office) {
     var colors = {
       green: '#36a64f',
