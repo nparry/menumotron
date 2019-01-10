@@ -1,6 +1,7 @@
 var AWS = require('aws-sdk');
 var request = require('request')
 var s3 = new AWS.S3();
+var qs = require('querystring');
 
 var Hipchatter = require('hipchatter');
 var hipchatter = new Hipchatter(process.env.HIPCHAT_AUTH_TOKEN, 'https://covermymeds.hipchat.com/v2/');
@@ -18,7 +19,13 @@ function messageDeliveryFinished(err, office, chatSystem, callback) {
   callback(office);
 }
 
-function sendHipchatMessage(office, message, color, callback) {
+function sendHipchatMessage(event, office, message, color, callback) {
+  // Semi-hack: Don't spam Hipchat if someone on Slack typed /lunch
+  if (getSlackResponseUrl(event)) {
+    callback(office);
+    return;
+  }
+
   hipchatter.notify('Menumotron', {
     message: office ? office + '\n' + message : message,
     color: color,
@@ -30,7 +37,7 @@ function sendHipchatMessage(office, message, color, callback) {
   });
 }
 
-function sendSlackMessage(office, message, color, callback) {
+function sendSlackMessage(event, office, message, color, callback) {
   var json = {};
   if (office) {
     var colors = {
@@ -54,14 +61,15 @@ function sendSlackMessage(office, message, color, callback) {
     json['text'] = message;
   }
 
-  request.post(process.env.SLACK_WEBHOOK_URL, {
+  var slackUrl = getSlackResponseUrl(event) || process.env.SLACK_WEBHOOK_URL;
+  request.post(slackUrl, {
     json: json
   }, function(err, res, body) {
     messageDeliveryFinished(err, office, 'slack', callback);
   });
 }
 
-function sendMessages(office, message, color, callback) {
+function sendMessages(event, office, message, color, callback) {
   if (message == null) {
     callback(office);
     return;
@@ -78,7 +86,7 @@ function sendMessages(office, message, color, callback) {
   }
 
   chatSystemDeliveryMethods.forEach(function (deliverer) {
-    deliverer(office, message, color, messageDeliveredCallback);
+    deliverer(event, office, message, color, messageDeliveredCallback);
   });
 }
 
@@ -110,6 +118,11 @@ function produceHandlerResult(offices) {
   };
 }
 
+function getSlackResponseUrl(event) {
+  var slackResponseUrl = event['body'] ? qs.parse(event['body'])['response_url'] : null;
+  return slackResponseUrl;
+}
+
 exports.handler = function(event, context, callback) {
   var today = new Date();
   var menuName = today.toISOString().split('T')[0];
@@ -117,7 +130,7 @@ exports.handler = function(event, context, callback) {
 
   if (isWeekend) {
     console.log('Skipping S3 lookup since ' + menuName + ' is the weekend');
-    sendMessages(null, 'Sorry, you have to figure out your own lunch on the weekend', 'gray', function(ignored) {
+    sendMessages(event, null, 'Sorry, you have to figure out your own lunch on the weekend', 'gray', function(ignored) {
       callback(null, produceHandlerResult([]));
     });
   }
@@ -137,7 +150,7 @@ exports.handler = function(event, context, callback) {
 
     Object.keys(offices).forEach(function (office) {
       fetchMenu(office, menuName, function(message) {
-        sendMessages(office, message, offices[office], handlerCallback);
+        sendMessages(event, office, message, offices[office], handlerCallback);
       });
     });
   }
