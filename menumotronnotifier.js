@@ -1,161 +1,179 @@
-var AWS = require('aws-sdk');
-var request = require('request')
-var s3 = new AWS.S3();
-var qs = require('querystring');
+const util = require('util');
+const qs = require('querystring');
 
-var Hipchatter = require('hipchatter');
-var hipchatter = new Hipchatter(process.env.HIPCHAT_AUTH_TOKEN, 'https://covermymeds.hipchat.com/v2/');
+const request = require('request');
+const postRequest = util.promisify(request.post);
 
-var bucketName = 'menumotron.nparry.com';
+const AWS = require('aws-sdk');
+const s3 = new AWS.S3();
+const getS3Object = util.promisify(s3.getObject);
 
-function messageDeliveryFinished(err, office, chatSystem, callback) {
-  if (err == null) {
-    console.log('Sent ' + chatSystem + ' notification');
+const Hipchatter = require('hipchatter');
+const hipchatter = new Hipchatter(process.env.HIPCHAT_AUTH_TOKEN, 'https://covermymeds.hipchat.com/v2/');
+const notifyHipchat = util.promisify(hipchatter.notify);
+
+const bucketName = 'menumotron.nparry.com';
+
+const colors = {
+  green: '#36a64f',
+  purple: '#770077',
+  gray: '#777777'
+};
+
+async function fetchMenus(offices) {
+  const today = new Date();
+  const menuName = today.toISOString().split('T')[0];
+  const isWeekend = (today.getDay() % 6) == 0;
+
+  if (isWeekend) {
+    return weekendMenu();
   }
-  else {
-    console.log('Failed to send ' + chatSystem + ' notification');
-  }
 
-  callback(office);
+  const menus = await weekdayMenus(offices, menuName);
+  return menus;
 }
 
-function sendHipchatMessage(event, office, message, color, callback) {
-  // Semi-hack: Don't spam Hipchat if someone on Slack typed /lunch
-  if (getSlackResponseUrl(event)) {
-    callback(office);
-    return;
+function weekendMenu() {
+  return [{
+    office: null,
+    color: 'gray',
+    menu: 'Sorry, you have to figure out your own lunch on the weekend'
+  }];
+}
+
+async function weekdayMenus(offices, menuName) {
+  const menus = await Promise.all(Object.keys(offices).map(async office => {
+    const menu = await weekdayMenu(office, menuName, offices[office]);
+    return menu;
+  }));
+  return [].concat(...menus);
+}
+
+async function weekdayMenu(office, menuName, color) {
+  const menu = await fetchMenu(office, menuName);
+  if (menu) {
+    return [{
+      office: office,
+      color: color,
+      menu: menu
+    }];
   }
 
-  hipchatter.notify('Menumotron', {
-    message: office ? office + '\n' + message : message,
-    color: color,
+  return [];
+}
+
+async function fetchMenu(office, menuName) {
+  try {
+    const data = await getS3Object.call(s3, {
+      Bucket: bucketName,
+      Key: 'menus/' + office + '/' + menuName
+    });
+
+    console.log('Fetched ' + office + ' menu for ' + menuName);
+    return data.Body.utf8Slice();
+  } catch (e) {
+    console.log('Failed to fetch ' + office + ' menu for ' + menuName);
+    if (office == 'Columbus') {
+      // Hack to amuse people
+      return 'Something delicious (shrug)';
+    }
+
+    return null;
+  }
+}
+
+function createNotifiers(event, menus, chatSystemFactories) {
+  const notifiers = chatSystemFactories.map(factory => factory(event, menus));
+  return [].concat(...notifiers);
+}
+
+function hipchatNotifierFactory(event, menus) {
+  // Semi-hack: Don't spam Hipchat if someone on Slack typed /lunch
+  if (getSlackResponseUrl(event)) {
+    return [];
+  }
+
+  return menus.map(menu => async function(response) {
+    await notifyHipchat.call(hipchatter, 'Menumotron', hipchatMessageParams(menu));
+  });
+}
+
+function hipchatMessageParams(menu) {
+  return {
+    message: menu.office ? menu.office + '\n' + menu.menu : menu.menu,
+    color: menu.color,
     message_format: 'text',
     token: process.env.HIPCHAT_ROOM_TOKEN,
     notify: true
-  }, function(err) {
-    messageDeliveryFinished(err, office, 'hipchat', callback);
-  });
+  };
 }
 
-function sendSlackMessage(event, office, message, color, callback) {
-  var json = {
-    response_type: 'in_channel'
-  };
+function slackNotifierFactory(event, menus) {
+  const slackMessage = slackMessageParams(menus);
 
-  if (office) {
-    var colors = {
-      green: '#36a64f',
-      purple: '#770077',
-      gray: '#777777'
+  if (getSlackResponseUrl(event)) {
+    // Someone typed /lunch, we can return a response to the API call
+    return async function(response) {
+      response['headers'] = { "Content-Type": "application/json" };
+      response['body'] = JSON.stringify(slackMessage);
     };
-
-    json['attachments'] = [{
-      fallback: message,
-      color: colors[color],
-      author_name: 'The Culinary Team',
-      author_link: 'https://confluence.covermymeds.com/x/DQAf',
-      title: office,
-      title_link: process.env[office.toUpperCase() + '_MENU_HISTORY'],
-      text: '```' + message + '```',
-      mrkdwn: true
-    }];
-  }
-  else {
-    json['text'] = message;
   }
 
-  var slackUrl = getSlackResponseUrl(event) || process.env.SLACK_WEBHOOK_URL;
-  request.post(slackUrl, {
-    json: json
-  }, function(err, res, body) {
-    messageDeliveryFinished(err, office, 'slack', callback);
-  });
-}
-
-function sendMessages(event, office, message, color, callback) {
-  if (message == null) {
-    callback(office);
-    return;
-  }
-
-  var chatSystemDeliveryMethods = [ sendHipchatMessage, sendSlackMessage ];
-
-  var results = [];
-  function messageDeliveredCallback(delivered) {
-    results.push(delivered);
-    if (results.length == chatSystemDeliveryMethods.length) {
-      callback(office);
-    }
-  }
-
-  chatSystemDeliveryMethods.forEach(function (deliverer) {
-    deliverer(event, office, message, color, messageDeliveredCallback);
-  });
-}
-
-function fetchMenu(office, menuName, callback) {
-  s3.getObject({
-    Bucket: bucketName,
-    Key: 'menus/' + office + '/' + menuName
-  }, function(err, data) {
-    if (err) {
-      console.log('Failed to fetch ' + office + ' menu for ' + menuName);
-      console.log(err, err.stack);
-      if (office == 'Columbus') {
-        // Hack to amuse people
-        callback('Something delicious (shrug)');
-      }
-      else {
-        callback(null);
-      }
-    } else {
-      console.log('Fetched ' + office + ' menu for ' + menuName);
-      callback(data.Body.utf8Slice());
-    }
-  });
-}
-
-function produceHandlerResult(offices) {
-  return {
-    statusCode: 200
+  // We are not responding to /lunch, post to the room via a webhook
+  return async function(response) {
+    await postRequest(process.env.SLACK_WEBHOOK_URL, { json: slackMessage });
   };
+}
+
+function slackMessageParams(menus) {
+  return {
+    response_type: 'in_channel',
+    attachments: menus.map(menu => slackAttachmentParams(menu))
+  };
+}
+
+function slackAttachmentParams(menu) {
+  const attachment = {
+    author_name: 'The Culinary Team',
+    author_link: 'https://confluence.covermymeds.com/x/DQAf',
+    fallback: menu.menu,
+    text: '```' + menu.menu + '```',
+    color: colors[menu.color],
+    mrkdwn: true
+  };
+
+  if (menu.office) {
+    attachment['title'] = menu.office;
+    attachment['title_link'] = process.env[menu.office.toUpperCase() + '_MENU_HISTORY'];
+  }
+
+  return attachment;
 }
 
 function getSlackResponseUrl(event) {
-  var slackResponseUrl = event['body'] ? qs.parse(event['body'])['response_url'] : null;
-  return slackResponseUrl;
+  return event['body'] ? qs.parse(event['body'])['response_url'] : null;
+}
+
+async function handleEvent(event) {
+  const menus = await fetchMenus({
+    Columbus: 'green',
+    Cleveland: 'purple'
+  });
+
+  const notifiers = createNotifiers(event, menus, [
+    hipchatNotifierFactory,
+    slackNotifierFactory
+  ]);
+
+  const response = {
+    statusCode: 200
+  };
+
+  await Promise.all(notifiers.map(async notifier => await notifier(response)));
+
+  return response;
 }
 
 exports.handler = function(event, context, callback) {
-  var today = new Date();
-  var menuName = today.toISOString().split('T')[0];
-  var isWeekend = (today.getDay() % 6) == 0;
-
-  if (isWeekend) {
-    console.log('Skipping S3 lookup since ' + menuName + ' is the weekend');
-    sendMessages(event, null, 'Sorry, you have to figure out your own lunch on the weekend', 'gray', function(ignored) {
-      callback(null, produceHandlerResult([]));
-    });
-  }
-  else {
-    var offices = {
-      'Columbus': 'green',
-      'Cleveland': 'purple'
-    };
-
-    var results = [];
-    function handlerCallback(office) {
-      results.push(office);
-      if (results.length == Object.keys(offices).length) {
-        callback(null, produceHandlerResult(results));
-      }
-    }
-
-    Object.keys(offices).forEach(function (office) {
-      fetchMenu(office, menuName, function(message) {
-        sendMessages(event, office, message, offices[office], handlerCallback);
-      });
-    });
-  }
+  handleEvent(event).then(result => callback(null, result));
 };
-
