@@ -139,7 +139,7 @@ function slackAttachmentParams(menu) {
     fallback: menu.menu,
     text: '```' + menu.menu + '```',
     color: colors[menu.color],
-    mrkdwn: true
+    mrkdwn_in: [ 'text' ]
   };
 
   if (menu.office) {
