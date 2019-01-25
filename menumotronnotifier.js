@@ -1,5 +1,7 @@
 const util = require('util');
 const qs = require('querystring');
+const chrono = require('chrono-node');
+const moment = require('moment');
 
 const request = require('request');
 const postRequest = util.promisify(request.post);
@@ -20,17 +22,27 @@ const colors = {
   gray: '#777777'
 };
 
-async function fetchMenus(offices) {
-  const today = new Date();
-  const menuName = today.toISOString().split('T')[0];
-  const isWeekend = (today.getDay() % 6) == 0;
-
-  if (isWeekend) {
-    return weekendMenu();
+async function fetchMenus(event, offices) {
+  const menus = {
+    date: getMenuDate(event)
   }
 
-  const menus = await weekdayMenus(offices, menuName);
+  const isWeekend = (menus.date.getDay() % 6) == 0;
+  menus['data'] = isWeekend ? weekendMenu() : await weekdayMenus(offices, menus.date);
+
   return menus;
+}
+
+function getMenuDate(event) {
+  return chrono.parseDate(getMenuDateParam(event)) || new Date();
+}
+
+function getMenuDateParam(event) {
+  try {
+    return event['body'] ? qs.parse(event['body'])['text'] : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function weekendMenu() {
@@ -41,7 +53,8 @@ function weekendMenu() {
   }];
 }
 
-async function weekdayMenus(offices, menuName) {
+async function weekdayMenus(offices, menuDate) {
+  const menuName = menuDate.toISOString().split('T')[0];
   const menus = await Promise.all(Object.keys(offices).map(async office => {
     const menu = await weekdayMenu(office, menuName, offices[office]);
     return menu;
@@ -93,7 +106,7 @@ function hipchatNotifierFactory(event, menus) {
     return [];
   }
 
-  return menus.map(menu => async function(response) {
+  return menus.data.map(menu => async function(response) {
     await notifyHipchat.call(hipchatter, 'Menumotron', hipchatMessageParams(menu));
   });
 }
@@ -128,7 +141,8 @@ function slackNotifierFactory(event, menus) {
 function slackMessageParams(menus) {
   return {
     response_type: 'in_channel',
-    attachments: menus.map(menu => slackAttachmentParams(menu))
+    text: 'Menu for ' + moment(menus.date).format('dddd, MMMM Do YYYY'),
+    attachments: menus.data.map(menu => slackAttachmentParams(menu))
   };
 }
 
@@ -155,7 +169,7 @@ function getSlackResponseUrl(event) {
 }
 
 async function handleEvent(event) {
-  const menus = await fetchMenus({
+  const menus = await fetchMenus(event, {
     Columbus: 'green',
     Cleveland: 'purple'
   });
